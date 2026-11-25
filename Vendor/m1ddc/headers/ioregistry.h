@@ -4,13 +4,22 @@
 # import <CoreGraphics/CoreGraphics.h>
 
 # ifndef MAX_DISPLAYS
-#  define MAX_DISPLAYS   4   // Set this to 2 or 4 depending on the Apple Silicon Mac you're using
+#  define MAX_DISPLAYS   8   // Set this to 2, 4 or 8 depending on the Apple Silicon Mac you're using
 # endif
 
 # define UUID_SIZE      37
 
 // IOAVServiceRef is a private class, so we need to define it here
 typedef CFTypeRef IOAVServiceRef;
+
+# define DDC_CHIP_ADDRESS_DEFAULT  0x37
+# define DDC_CHIP_ADDRESS_MCDP29XX 0xB7
+
+typedef struct
+{
+    IOAVServiceRef service;
+    UInt32 chipAddress;
+} DDCTransport;
 
 // Base structure for display infos
 typedef struct
@@ -33,6 +42,8 @@ DisplayInfos*   selectDisplay(DisplayInfos *displays, int connectedDisplays, cha
 
 IOAVServiceRef  getDefaultDisplayAVService();
 IOAVServiceRef  getDisplayAVService(DisplayInfos* displayInfos);
+DDCTransport    getDisplayDDCTransport(DisplayInfos* displayInfos);
+Boolean         isMCDP29XXProxy(io_service_t proxy);
 
 // External functions
 extern IOAVServiceRef   IOAVServiceCreate(CFAllocatorRef allocator);

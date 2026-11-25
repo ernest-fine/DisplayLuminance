@@ -3,9 +3,12 @@
 #include "i2c.h"
 #include "utils.h"
 
+useconds_t ddcReadWait = DDC_READ_WAIT;
+
 static int getBytesUsed(UInt8* data) {
     int bytes = 0;
-    for (int i = 0; i < (int)sizeof(data); ++i) {
+    // Check up to DDC_BUFFER_SIZE bytes, not sizeof(data) which is just pointer size
+    for (int i = 0; i < DDC_BUFFER_SIZE; ++i) {
         if (data[i] != 0) {
             bytes = i + 1;
         }
@@ -22,47 +25,89 @@ DDCPacket createDDCPacket(UInt8 attrCode) {
 }
 
 // Prepare DDC packet for read
-void prepareDDCRead(UInt8* data) {
+void prepareDDCRead(DDCPacket *packet) {
+    UInt8* data = packet->data;
     data[0] = 0x82;
     data[1] = 0x01;
-    data[3] = 0x6e ^ data[0] ^ data[1] ^ data[2] ^ data[3];
+    data[3] = 0x6E ^ packet->inputAddr ^ data[0] ^ data[1] ^ data[2];
 }
 
 // Prepare DDC packet for write
-void prepareDDCWrite(UInt8* data, UInt8 newValue) {
+void prepareDDCWrite(DDCPacket *packet, UInt16 newValue) {
+    UInt8* data = packet->data;
     data[0] = 0x84;
     data[1] = 0x03;
     data[3] = (newValue) >> 8;
     data[4] = newValue & 255;
-    data[5] = 0x6E ^ 0x51 ^ data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4];
+    data[5] = 0x6E ^ packet->inputAddr ^ data[0] ^ data[1] ^ data[2] ^ data[3] ^ data[4];
 }
 
 
-IOReturn performDDCRead(IOAVServiceRef avService, DDCPacket *packet) {
+IOReturn performDDCReadAtChipAddress(IOAVServiceRef avService, UInt32 chipAddress, DDCPacket *packet) {
     memset(packet->data, 0, sizeof(UInt8) * DDC_BUFFER_SIZE);
-    usleep(DDC_WAIT);
-    return IOAVServiceReadI2C(avService, 0x37, packet->inputAddr, packet->data, 12);
+    usleep(ddcReadWait);
+    return IOAVServiceReadI2C(avService, chipAddress, packet->inputAddr, packet->data, 12);
 }
 
-IOReturn performDDCWrite(IOAVServiceRef avService, DDCPacket *packet) {
+IOReturn performDDCWriteAtChipAddress(IOAVServiceRef avService, UInt32 chipAddress, DDCPacket *packet) {
     IOReturn ret;
 
     for (int i = 0; i < DDC_ITERATIONS; ++i) {
         usleep(DDC_WAIT);
-        if ((ret = IOAVServiceWriteI2C(avService, 0x37, packet->inputAddr, packet->data, getBytesUsed(packet->data)))) {
+        if ((ret = IOAVServiceWriteI2C(avService, chipAddress, packet->inputAddr, packet->data, getBytesUsed(packet->data)))) {
             return ret;
         }
     }
     return ret;
 }
 
+IOReturn performDDCRead(IOAVServiceRef avService, DDCPacket *packet) {
+    return performDDCReadAtChipAddress(avService, DDC_CHIP_ADDRESS_DEFAULT, packet);
+}
+
+IOReturn performDDCWrite(IOAVServiceRef avService, DDCPacket *packet) {
+    return performDDCWriteAtChipAddress(avService, DDC_CHIP_ADDRESS_DEFAULT, packet);
+}
+
+
+// Check that the bytes read are a "Get VCP Feature Reply" for the requested code: source 0x6E, length 0x88,
+// opcode 0x02, result code, VCP code, type, max (2 bytes), current (2 bytes), then a checksum (0x50 XOR every
+// byte before it). An empty buffer, an echo of the request or a shifted reply is invalid. In a reply that checks
+// out, result 0x00 carries a value and 0x01 means the display doesn't support the code (as ddcutil reads it).
+DDCReplyStatus checkDDCReply(UInt8 *data, UInt8 attrCode) {
+    if (data[0] != 0x6E || data[1] != 0x88 || data[2] != 0x02 || data[4] != attrCode) {
+        return DDC_REPLY_INVALID;
+    }
+    UInt8 checksum = 0x50;
+    for (int i = 0; i < 10; ++i) {
+        checksum ^= data[i];
+    }
+    if (checksum != data[10]) {
+        return DDC_REPLY_INVALID;
+    }
+    if (data[3] == 0x00) {
+        return DDC_REPLY_OK;
+    }
+    if (data[3] == 0x01) {
+        return DDC_REPLY_UNSUPPORTED;
+    }
+    return DDC_REPLY_INVALID;
+}
 
 DDCValue convertI2CtoDDC(char *i2cBytes) {
     DDCValue displayAttr = {};
     NSData *i2cData = [NSData dataWithBytes:(const void *)i2cBytes length:(NSUInteger)11];
-    NSRange maxValueRange = {7, 1};
-    NSRange curValueRange = {9, 1};
-    [[i2cData subdataWithRange:maxValueRange] getBytes:&displayAttr.maxValue length:sizeof(1)];
-    [[i2cData subdataWithRange:curValueRange] getBytes:&displayAttr.curValue length:sizeof(1)];
+    // DDC/CI "Get VCP Feature Reply": maximum value is in bytes [6..7] and the
+    // current value in bytes [8..9], both big-endian.
+    NSRange maxValueRange = {6, 2};
+    uint16_t maxValue = 0;
+    [[i2cData subdataWithRange:maxValueRange] getBytes:&maxValue length:sizeof(2)];
+    displayAttr.maxValue = CFSwapInt16BigToHost(maxValue);
+
+    NSRange curValueRange = {8, 2};
+    uint16_t curValue = 0;
+    [[i2cData subdataWithRange:curValueRange] getBytes:&curValue length:sizeof(2)];
+    displayAttr.curValue = CFSwapInt16BigToHost(curValue);
+
     return displayAttr;
 }

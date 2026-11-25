@@ -26,9 +26,10 @@ SRC_DIR =	sources
 LIB_DIR =	library
 BIN_DIR =	/usr/local/bin
 
-# Sources & Objects - Binary
-SOURCES =	i2c \
-			ioregistry \
+# The public header is assembled in this order. i2c and avservice use types from ioregistry.
+SOURCES =	ioregistry \
+			i2c \
+			avservice \
 			m1ddc \
 
 OBJ_DIR =	.objects

@@ -4,6 +4,7 @@
 @import CoreGraphics;
 
 #include "ioregistry.h"
+#include "avservice.h"
 #include "i2c.h"
 #include "utils.h"
 
@@ -15,65 +16,72 @@ static void writeToStdOut(NSString *text) {
 }
 
 static void printUsage() {
-    writeToStdOut(@"Controls volume, luminance (brightness), contrast, color gain, input of an external Display connected via USB-C (DisplayPort Alt Mode) over DDC on an Apple Silicon Mac.\n"
-    "Displays attached via the built-in HDMI port of M1 or entry level M2 Macs are not supported.\n"
+    writeToStdOut([NSString stringWithFormat:
+    @"Control an external display over DDC/CI on an Apple Silicon Mac using USB-C/DisplayPort\n"
+    "Alt Mode or a supported built-in HDMI port.\n"
     "\n"
-    "Usage examples:\n"
+    "Usage\n"
+    "  m1ddc [options] [display <selector>] <command> <control> [value]\n"
+    "  m1ddc display list [all] [detailed]\n"
+    "  m1ddc help\n"
     "\n"
-    " m1ddc set contrast 5          - Sets contrast to 5\n"
-    " m1ddc get luminance           - Returns current luminance\n"
-    " m1ddc set red 90              - Sets red gain to 90\n"
-    " m1ddc chg volume -10          - Decreases volume by 10\n"
-    " m1ddc display list            - Lists displays\n"
-    " m1ddc display 1 set volume 50 - Sets volume to 50 on Display 1\n"
+    "Examples\n"
+    "  m1ddc get luminance\n"
+    "  m1ddc chg volume -10\n"
+    "  m1ddc display 1 set contrast 50\n"
+    "  m1ddc --read-wait 80 display serial=SALMQS134621 get input\n"
     "\n"
-    "Commands:\n"
+    "Options (before the command or display selector, in any order)\n"
+    "  -v, --verbose     Print which display is used.\n"
+    "  --read-wait ms    Wait 1 to %d ms before reading a DDC reply (default %d ms).\n"
+    "                    Try a higher value if reads fail with 'no valid reply'.\n"
     "\n"
-    " set luminance n         - Sets luminance (brightness) to n, where n is a number between 0 and the maximum value (usually 100).\n"
-    "     contrast n          - Sets contrast to n, where n is a number between 0 and the maximum value (usually 100).\n"
-    "     (red,green,blue) n  - Sets selected color channel gain to n, where n is a number between 0 and the maximum value (usually 100).\n"
-    "     volume n            - Sets volume to n, where n is a number between 0 and the maximum value (usually 100).\n"
-    "     input n             - Sets input source to n, common values include:\n"
-    "                           DisplayPort 1: 15, DisplayPort 2: 16, HDMI 1: 17, HDMI 2: 18, USB-C: 27.\n"
-    "     input-alt n         - Sets input source to n (using alternate addressing, as used by LG), common values include:\n"
-    "                           DisplayPort 1: 208, DisplayPort 2: 209, HDMI 1: 144, HDMI 2: 145, USB-C / DP 3: 210.\n"
+    "Commands\n"
+    "  get <control>          Print the current value, e.g. 'get input'.\n"
+    "  max <control>          Print the maximum value reported by the display.\n"
+    "  set <control> <value>  Write the value directly and print 'Writing N' on success.\n"
+    "  chg <control> <delta>  Add a signed delta to the current value, clamp the result\n"
+    "                         to 0 through the reported maximum, then write it and print 'Writing N'.\n"
     "\n"
-    "     mute on             - Sets mute on (you can use 1 instead of 'on')\n"
-    "     mute off            - Sets mute off (you can use 2 instead of 'off')\n"
+    "  get and max accept any control the display supports reading. chg needs both the current\n"
+    "  and maximum values. Each read gets up to %d attempts. An 'Unsupported VCP code' reply\n"
+    "  ends the read immediately. A failed read exits with status 1 and chg skips the write.\n"
     "\n"
-    "     pbp n               - Switches PIP/PBP on certain Dell screens (e.g. U3421W), possible values:\n"
-    "                           off: 0, small window: 33, large window: 34, 50/50 split: 36, 26/74 split: 43, 74/26 split: 44.\n"
-    "     pbp-input n         - Sets second PIP/PBP input on certain Dell screens, possible values:\n"
-    "                           DisplayPort 1: 15, DisplayPort 2: 16, HDMI 1: 17, HDMI 2: 18.\n"
+    "Controls (aliases in parentheses, case-sensitive)\n"
+    "  luminance (l)                Brightness, usually 0 to 100.\n"
+    "  contrast (c)                 Contrast, usually 0 to 100.\n"
+    "  red (r), green (g), blue (b) Red, green, or blue gain, usually 0 to 100.\n"
+    "  volume (v)                   Volume, usually 0 to 100.\n"
+    "  mute (m)                     on or 1 to mute, off or 2 to unmute.\n"
+    "  standby (s)                  Numeric power mode (VCP 0xD6). Supported modes vary by display.\n"
+    "  input (i)                    Input source. Common values are DP 1 = 15, DP 2 = 16,\n"
+    "                               HDMI 1 = 17, HDMI 2 = 18, USB-C = 27.\n"
+    "  input-alt (I)                Alternate input control on some LG displays. DP 1 = 208,\n"
+    "                               DP 2 = 209, HDMI 1 = 144, HDMI 2 = 145, USB-C / DP 3 = 210.\n"
+    "  pbp (p)                      PIP/PBP layout on some Dell displays (e.g. U3421W).\n"
+    "                               Off = 0, small = 33, large = 34, 50/50 = 36, 26/74 = 43,\n"
+    "                               74/26 = 44, 2x2 = 65.\n"
+    "  pbp-input (pi)               Secondary Dell PIP/PBP input. DP 1 = 15, DP 2 = 16,\n"
+    "                               HDMI 1 = 17, HDMI 2 = 18, HDMI 1 + HDMI 2 + DP 1 = 15953.\n"
+    "  kvm (k)                      Dell KVM. USB 1-4 order = 1728, next device = 65280.\n"
+    "  asus-kvm                     ASUS USB upstream (e.g. XG27UCDMG, Auto KVM disabled).\n"
+    "                               USB-B = 2, USB-C = 3.\n"
     "\n"
-    " get luminance           - Returns current luminance (if supported by the display).\n"
-    "     contrast            - Returns current contrast (if supported by the display).\n"
-    "     (red,green,blue)    - Returns current color gain (if supported by the display).\n"
-    "     volume              - Returns current volume (if supported by the display).\n"
-    "\n"
-    " max luminance           - Returns maximum luminance (if supported by the display, usually 100).\n"
-    "     contrast            - Returns maximum contrast (if supported by the display, usually 100).\n"
-    "     (red,green,blue)    - Returns maximum color gain (if supported by the display, usually 100).\n"
-    "     volume              - Returns maximum volume (if supported by the display, usually 100).\n"
-    "\n"
-    " chg luminance n         - Changes luminance by n and returns the current value (requires current and max reading support).\n"
-    "     contrast n          - Changes contrast by n and returns the current value (requires current and max reading support).\n"
-    "     (red,green,blue) n  - Changes color gain by n and returns the current value (requires current and max reading support).\n"
-    "     volume n            - Changes volume by n and returns the current value (requires current and max reading support).\n"
-    "\n"
-    " display list [detailed] - Lists displays. If `detailed` is provided, prints display extended attributes.\n"
-    "         n               - Chooses which display to control (use number 1, 2 etc.)\n"
-    "         (method=)<id>   - Chooses which display to control using a specific identification method. (If not set, it defaults to `uuid`).\n"
-    "                           Possible values for `method` are:\n"
-    "                           'id':    <display_id>\n"
-    "                           'uuid:   <system_uuid>  *Default\n"
-    "                           'edid':  <edid_uuid>\n"
-    "                           'seid':  <alphnum_serial>:<edid_uuid>\n"
-    "                           'basic': <vendor>:<model>:<serial>\n"
-    "                           'ext':   <vendor>:<model>:<serial>:<manufacturer>:<alphnum_serial>:<product_name>\n"
-    "                           'full':  <vendor>:<model>:<serial>:<manufacturer>:<alphnum_serial>:<product_name>:<io_location>\n"
-    "\n"
-    "Tip: You can also use 'l', 'v' instead of 'luminance', 'volume' etc.\n");
+    "Display selection\n"
+    "  display list [detailed]      List displays from the macOS scan (up to %d online displays).\n"
+    "  display N                    Select a number from 'display list', starting at 1.\n"
+    "  display [method=]<id>        Select by identifier. Use 'display list detailed' for attributes.\n"
+    "    id=<display_id>            uuid=<system_uuid> (default)       edid=<edid_uuid>\n"
+    "    seid=<alphanumeric_serial>:<edid_uuid>\n"
+    "    basic=<vendor>:<model>:<serial>\n"
+    "    ext=<vendor>:<model>:<serial>:<manufacturer>:<alphanumeric_serial>:<product_name>\n"
+    "    full=<vendor>:<model>:<serial>:<manufacturer>:<alphanumeric_serial>:<product_name>:<io_location>\n"
+    "  display list all [detailed]  Scan up to %d external DDC services, including displays on another\n"
+    "                               input. This list has its own numbering. Use 'display list' for N.\n"
+    "  display serial=<serial>      Select by alphanumeric EDID serial when 'display list all' shows one.\n"
+    "                               Control on an inactive input depends on the display.\n"
+    "  List aliases                 l = list, a = all, d = detailed.\n",
+    DDC_READ_WAIT_MAX_MS, DDC_READ_WAIT / 1000, DDC_READ_ATTEMPTS, MAX_DISPLAYS, MAX_AVSERVICES]);
 }
 
 static void printDisplayInfos(DisplayInfos *display, int nbDisplays, bool detailed) {
@@ -95,36 +103,77 @@ static void printDisplayInfos(DisplayInfos *display, int nbDisplays, bool detail
     }
 }
 
+static void printAVServiceInfos(AVServiceInfos *sinks, int nbSinks, bool detailed) {
+    for (int i = 0; i < nbSinks; i++) {
+        AVServiceInfos *sink = sinks + i;
+        if (sink->edidStatus != kIOReturnSuccess) {
+            writeToStdOut([NSString stringWithFormat:@"[%i] (EDID not readable: %s)\n", (i + 1), mach_error_string(sink->edidStatus)]);
+            continue;
+        }
+        writeToStdOut([NSString stringWithFormat:@"[%i] %@ (%@) %@\n", (i + 1), sink->productName ?: @"Unknown Display",
+            sink->alphNumSerial ?: @"-", sink->displayID ? @"" : @"- no matching macOS display"]);
+        if (detailed) {
+            writeToStdOut([NSString stringWithFormat:@" - Product name:  %@\n", sink->productName ?: @"Unknown Display"]);
+            writeToStdOut([NSString stringWithFormat:@" - Manufacturer:  %@\n", sink->manufacturer]);
+            writeToStdOut([NSString stringWithFormat:@" - AN Serial:     %@\n", sink->alphNumSerial ?: @""]);
+            writeToStdOut([NSString stringWithFormat:@" - Vendor:        %u (0x%04x)\n", sink->vendor, sink->vendor]);
+            writeToStdOut([NSString stringWithFormat:@" - Model:         %u (0x%04x)\n", sink->model, sink->model]);
+            writeToStdOut([NSString stringWithFormat:@" - Serial:        %u (0x%04x)\n", sink->serial, sink->serial]);
+            writeToStdOut([NSString stringWithFormat:@" - Display ID:    %@\n", sink->displayID ? [NSString stringWithFormat:@"%u", sink->displayID] : @"none (not driven by macOS)"]);
+            writeToStdOut([NSString stringWithFormat:@" - Registry ID:   0x%llx\n", sink->registryID]);
+        }
+    }
+}
+
 // Function to handle the reading operation (get, max, chg)
-static DDCValue readingOperation(IOAVServiceRef avService, DDCPacket *packet) {
+// Retries until the reply is valid, up to DDC_READ_ATTEMPTS times; an invalid reply is never decoded.
+// A display that answers "unsupported VCP code" is taken at its word, without asking again.
+static DDCValue readingOperation(DDCTransport *transport, DDCPacket *packet) {
     DDCValue dummyAttr = {-1, -1};
+    IOReturn err = kIOReturnSuccess;
 
-    prepareDDCRead(packet->data);
+    prepareDDCRead(packet);
 
-    IOReturn err = performDDCWrite(avService, packet);
-    if (err) {
-        writeToStdOut([NSString stringWithFormat:@"DDC communication failure: %s\n", mach_error_string(err)]);
-        return dummyAttr;
+    for (int attempt = 1; attempt <= DDC_READ_ATTEMPTS; ++attempt) {
+        if (attempt > 1) {
+            usleep(DDC_RETRY_WAIT);
+        }
+        err = performDDCWriteAtChipAddress(transport->service, transport->chipAddress, packet);
+        if (err) {
+            continue;
+        }
+
+        DDCPacket readPacket = {};
+        readPacket.inputAddr = packet->inputAddr;
+
+        err = performDDCReadAtChipAddress(transport->service, transport->chipAddress, &readPacket);
+        if (err) {
+            continue;
+        }
+        DDCReplyStatus reply = checkDDCReply(readPacket.data, packet->data[2]);
+        if (reply == DDC_REPLY_OK) {
+            return convertI2CtoDDC((char *)readPacket.data);
+        }
+        if (reply == DDC_REPLY_UNSUPPORTED) {
+            writeToStdOut([NSString stringWithFormat:@"Unsupported VCP code 0x%02X: the display does not support this command\n", packet->data[2]]);
+            return dummyAttr;
+        }
     }
 
-    DDCPacket readPacket = {};
-    readPacket.inputAddr = packet->inputAddr;
-
-    err = performDDCRead(avService, &readPacket);
     if (err) {
         writeToStdOut([NSString stringWithFormat:@"DDC communication failure: %s\n", mach_error_string(err)]);
-        return dummyAttr;
+    } else {
+        writeToStdOut(@"DDC communication failure: no valid reply\n");
     }
-
-    return convertI2CtoDDC((char *)readPacket.data);
+    return dummyAttr;
 }
 
 // Function to handle the writing operation (set, chg)
-static int writingOperation(IOAVServiceRef avService, DDCPacket *packet, UInt8 newValue) {
+static int writingOperation(DDCTransport *transport, DDCPacket *packet, UInt16 newValue) {
 
-    prepareDDCWrite(packet->data, newValue);
+    prepareDDCWrite(packet, newValue);
 
-    IOReturn err = performDDCWrite(avService, packet);
+    IOReturn err = performDDCWriteAtChipAddress(transport->service, transport->chipAddress, packet);
     if (err) {
         writeToStdOut([NSString stringWithFormat:@"DDC communication failure: %s\n", mach_error_string(err)]);
         return 1;
@@ -145,10 +194,12 @@ static UInt8 attrCodeFromCommand(char *command) {
     else if (STR_EQ(command, "blue") || STR_EQ(command, "b")) { return BLUE; }
     else if (STR_EQ(command, "pbp") || STR_EQ(command, "p")) { return PBP; }
     else if (STR_EQ(command, "pbp-input") || STR_EQ(command, "pi")) { return PBP_INPUT; }
+    else if (STR_EQ(command, "kvm") || STR_EQ(command, "k")) { return KVM; }
+    else if (STR_EQ(command, "asus-kvm")) { return ASUS_KVM; }
     return 0x00;
 }
 
-static UInt8 computeAttributeValue(char *command, char *arg, DDCValue displayAttr) {
+static UInt16 computeAttributeValue(char *command, char *arg, DDCValue displayAttr) {
     int newValue;
 
     if (STR_EQ(arg, "on") ) { newValue = 1; }
@@ -160,7 +211,8 @@ static UInt8 computeAttributeValue(char *command, char *arg, DDCValue displayAtt
         if (newValue < 0 ) { newValue = 0; }
         if (newValue > displayAttr.maxValue ) { newValue = displayAttr.maxValue; }
     }
-    return (UInt8)newValue;
+
+    return (UInt16)newValue;
 }
 
 int main(int argc, char** argv) {
@@ -169,57 +221,133 @@ int main(int argc, char** argv) {
     argv += 1;
     argc -= 1;
 
-	if (argc < 2) {
-		printUsage();
-		return argc && STR_EQ(argv[0], "help") ? 1 : 0;
-	}
-
-    if (STR_EQ(argv[0], "-v") || STR_EQ(argv[0], "--verbose")) {
-        argv += 1;
-        argc -= 1;
-        verbose = true;
+    // Let the option parser diagnose a missing --read-wait value.
+    if (argc == 0 || (argc == 1 && !STR_EQ(argv[0], "--read-wait"))) {
+        printUsage();
+        return argc && STR_EQ(argv[0], "help") ? EXIT_FAILURE : EXIT_SUCCESS;
     }
-    
+
+    // Options come before the command, in any order. A command never starts with '-', so the first word
+    // that doesn't ends the options (a later '-10', as in 'chg volume -10', is never looked at here).
+    while (argc > 0 && argv[0][0] == '-') {
+        if (STR_EQ(argv[0], "-v") || STR_EQ(argv[0], "--verbose")) {
+            verbose = true;
+            argv += 1;
+            argc -= 1;
+        } else if (STR_EQ(argv[0], "--read-wait")) {
+            char *end = NULL;
+            long ms = argc > 1 ? strtol(argv[1], &end, 10) : 0;
+            if (argc < 2 || end == argv[1] || *end != '\0' || ms < 1 || ms > DDC_READ_WAIT_MAX_MS) {
+                writeToStdOut([NSString stringWithFormat:@"--read-wait needs a whole number of milliseconds, 1 to %d! Enter 'm1ddc help' for help!\n", DDC_READ_WAIT_MAX_MS]);
+                return EXIT_FAILURE;
+            }
+            ddcReadWait = (useconds_t)(ms * 1000);
+            argv += 2;
+            argc -= 2;
+        } else {
+            writeToStdOut([NSString stringWithFormat:@"Unknown option '%s'! Enter 'm1ddc help' for help!\n", argv[0]]);
+            return EXIT_FAILURE;
+        }
+    }
+
+    if (argc < 2) {
+        writeToStdOut(@"Missing parameter! Enter 'm1ddc help' for help!\n");
+        return EXIT_FAILURE;
+    }
+
     DisplayInfos displayInfos[MAX_DISPLAYS];
     DisplayInfos *selectedDisplay = NULL;
+    DisplayInfos directDisplay;
+
+    DDCTransport transport = {
+        .service = NULL,
+        .chipAddress = DDC_CHIP_ADDRESS_DEFAULT,
+    };
 
     // Display lister and selection
     if (STR_EQ(argv[0], "display")) {
 
         int connectedDisplays = getOnlineDisplayInfos(displayInfos);
-        if (connectedDisplays == 0) {
-            writeToStdOut(@"No external display found, aborting");
-            return EXIT_FAILURE;
-        }
+        bool listing = STR_EQ(argv[1], "list") || STR_EQ(argv[1], "l");
+        bool wholeSet = (listing && argc >= 3 && (STR_EQ(argv[2], "all") || STR_EQ(argv[2], "a")))
+            || strncmp(argv[1], "serial=", 7) == 0;
 
-        // Printing out display list
-        if (STR_EQ(argv[1], "list") || STR_EQ(argv[1], "l")) {
-            printDisplayInfos(displayInfos, connectedDisplays, (argc >= 3 && (STR_EQ(argv[2], "detailed") || STR_EQ(argv[2], "d"))));
-            return EXIT_SUCCESS;
-        }
-        
-        // Selecting display
-        selectedDisplay = selectDisplay(displayInfos, connectedDisplays, argv[1]);
-        if (selectedDisplay == NULL) {
-            writeToStdOut(@"The specified display does not exist. Use 'display list' to list displays and use it's number (1, 2...) or its UUID to specify display!\n");
-            return EXIT_FAILURE;
+        // The direct path enumerates every DDC-capable display, whether or not macOS is driving it
+        if (wholeSet) {
+            AVServiceInfos sinks[MAX_AVSERVICES];
+            int nbSinks = getAVServiceInfos(sinks, MAX_AVSERVICES);
+            matchAVServicesToDisplays(sinks, nbSinks, displayInfos, connectedDisplays);
+            if (listing) {
+                printAVServiceInfos(sinks, nbSinks, (argc >= 4 && (STR_EQ(argv[3], "detailed") || STR_EQ(argv[3], "d"))));
+                releaseAVServiceInfos(sinks, nbSinks);
+                return nbSinks > 0 ? EXIT_SUCCESS : EXIT_FAILURE;
+            }
+            AVServiceInfos *sink = selectAVService(sinks, nbSinks, argv[1] + 7);
+            if (sink != NULL) {
+                transport = getAVServiceDDCTransport(sink);
+                fillDisplayInfosFromAVService(&directDisplay, sink);
+                selectedDisplay = &directDisplay;
+            }
+            releaseAVServiceInfos(sinks, nbSinks);
+            if (selectedDisplay == NULL || transport.service == NULL) {
+                writeToStdOut(@"The specified display does not exist. Use 'display list all' to list every DDC-capable display and its serial!\n");
+                return EXIT_FAILURE;
+            }
+        } else {
+            if (connectedDisplays == 0) {
+                writeToStdOut(@"No external display found, aborting");
+                return EXIT_FAILURE;
+            }
+
+            // Printing out display list
+            if (listing) {
+                printDisplayInfos(displayInfos, connectedDisplays, (argc >= 3 && (STR_EQ(argv[2], "detailed") || STR_EQ(argv[2], "d"))));
+                return EXIT_SUCCESS;
+            }
+
+            // Selecting display
+            selectedDisplay = selectDisplay(displayInfos, connectedDisplays, argv[1]);
+            if (selectedDisplay == NULL) {
+                writeToStdOut(@"The specified display does not exist. Use 'display list' to list displays and use it's number (1, 2...) or its UUID to specify display!\n");
+                return EXIT_FAILURE;
+            }
         }
 
 		argv += 2;
         argc -= 2;
     }
-    
-    IOAVServiceRef avService;
 
-    // If there is no display selected, we'll use the default display
+    // For unqualified commands, use the main display's matched service only
+    // when it is positively identified as MCDP29xx. Otherwise preserve the
+    // legacy default IOAVServiceCreate()/0x37 behavior.
     if (selectedDisplay == NULL) {
-        selectedDisplay = displayInfos;
-        avService = getDefaultDisplayAVService();
-    } else {
-        avService = getDisplayAVService(selectedDisplay);
+        int connectedDisplays = getOnlineDisplayInfos(displayInfos);
+        CGDirectDisplayID mainDisplayID = CGMainDisplayID();
+
+        for (int i = 0; i < connectedDisplays; ++i) {
+            if (displayInfos[i].id != mainDisplayID) {
+                continue;
+            }
+
+            DDCTransport mainTransport = getDisplayDDCTransport(displayInfos + i);
+            if (mainTransport.service != NULL && mainTransport.chipAddress == DDC_CHIP_ADDRESS_MCDP29XX) {
+                selectedDisplay = displayInfos + i;
+                transport = mainTransport;
+            } else if (mainTransport.service != NULL) {
+                CFRelease(mainTransport.service);
+            }
+            break;
+        }
+
+        if (transport.service == NULL) {
+            selectedDisplay = displayInfos;
+            transport.service = getDefaultDisplayAVService();
+        }
+    } else if (transport.service == NULL) {
+        transport = getDisplayDDCTransport(selectedDisplay);
     }
 
-    if (avService == NULL) {
+    if (transport.service == NULL) {
         writeToStdOut(@"Could not find a suitable external display.\n");
         return EXIT_FAILURE;
     }
@@ -230,7 +358,7 @@ int main(int argc, char** argv) {
     }
 
     if (verbose) {
-        writeToStdOut([NSString stringWithFormat:@"Using display: %@ [%@]\n", selectedDisplay->productName, selectedDisplay->uuid]);
+        writeToStdOut([NSString stringWithFormat:@"Using display: %@ [%@]\n", selectedDisplay->productName, selectedDisplay->uuid ?: selectedDisplay->alphNumSerial ?: @"-"]);
     }
 
     DDCValue displayAttr = {-1, -1};
@@ -245,29 +373,34 @@ int main(int argc, char** argv) {
 
     // Reading current
     if (!STR_EQ(argv[0], "set")) {
-        displayAttr = readingOperation(avService, &packet);
+        displayAttr = readingOperation(&transport, &packet);
         if (displayAttr.curValue == -1) {
             return EXIT_FAILURE;
         }
     }
-    
-    if (STR_EQ(argv[0], "get") || STR_EQ(argv[0], "max")) {
-        writeToStdOut([NSString stringWithFormat:@"%i\n", (STR_EQ(argv[0], "get") ? displayAttr.curValue : displayAttr.maxValue)]);
+
+    if (STR_EQ(argv[0], "get")) {
+        writeToStdOut([NSString stringWithFormat:@"%i\n", displayAttr.curValue]);
         return EXIT_SUCCESS;
     }
 
-    if (STR_EQ(argv[0], "set") || STR_EQ(argv[0], "chg") ) {   
+    if (STR_EQ(argv[0], "max")) {
+        writeToStdOut([NSString stringWithFormat:@"%i\n", displayAttr.maxValue]);
+        return EXIT_SUCCESS;
+    }
+
+    if (STR_EQ(argv[0], "set") || STR_EQ(argv[0], "chg") ) {
         if (argc < 3) {
             writeToStdOut(@"Missing value! Enter 'm1ddc help' for help!\n");
             return EXIT_FAILURE;
         }
 
-        UInt8 writeValue = computeAttributeValue(argv[0], argv[2], displayAttr);
+        UInt16 writeValue = computeAttributeValue(argv[0], argv[2], displayAttr);
 
-        if (writingOperation(avService, &packet, writeValue)) {
+        if (writingOperation(&transport, &packet, writeValue)) {
             return EXIT_FAILURE;
         }
-        writeToStdOut([NSString stringWithFormat:@"%i\n", writeValue]);
+        writeToStdOut([NSString stringWithFormat:@"Writing %i\n", writeValue]);
         return EXIT_SUCCESS;
     }
     writeToStdOut(@"Use 'set', 'get', 'max', 'chg' as first parameter! Enter 'm1ddc help' for help!\n");

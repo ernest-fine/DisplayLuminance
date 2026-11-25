@@ -135,6 +135,7 @@ private struct AllDisplaysCard: View {
         }
         .padding(20)
         .frame(maxWidth: .infinity, minHeight: 282, alignment: .topLeading)
+        .fixedSize(horizontal: false, vertical: true)
         .background {
             BrightnessHalo(intensity: viewModel.summary?.intensity ?? 0)
                 .clipShape(RoundedRectangle(cornerRadius: BrightnessPalette.panelRadius))
@@ -162,7 +163,7 @@ private struct AllDisplaysCard: View {
     private func groupButton(_ direction: BrightnessDirection) -> some View {
         let destination = viewModel.groupDestination(direction)
         let verb = direction == .lower ? "Lower" : "Raise"
-        let action = "\(verb) \(viewModel.displays.count == 2 ? "both" : "all")"
+        let action = "\(verb) all"
 
         return Button {
             Task { await viewModel.adjustAll(direction) }
