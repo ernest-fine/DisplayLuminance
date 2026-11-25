@@ -11,8 +11,8 @@
 		A10000000000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000002 /* ContentView.swift */; };
 		A10000000000000000000003 /* M1DDCService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000003 /* M1DDCService.swift */; };
 		A10000000000000000000004 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000004 /* Assets.xcassets */; };
-		A10000000000000000000006 /* WindowConfigurator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000006 /* WindowConfigurator.swift */; };
-		A10000000000000000000008 /* FullWidthSegmentedControl.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000008 /* FullWidthSegmentedControl.swift */; };
+		A10000000000000000000009 /* DisplayLuminanceViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000009 /* DisplayLuminanceViewModel.swift */; };
+		A1000000000000000000000A /* BrightnessAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000000000000000000000A /* BrightnessAppearance.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -20,9 +20,9 @@
 		A20000000000000000000002 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A20000000000000000000003 /* M1DDCService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = M1DDCService.swift; sourceTree = "<group>"; };
 		A20000000000000000000004 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		A20000000000000000000006 /* WindowConfigurator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WindowConfigurator.swift; sourceTree = "<group>"; };
 		A20000000000000000000007 /* build-m1ddc.sh */ = {isa = PBXFileReference; lastKnownFileType = text.script.sh; path = "build-m1ddc.sh"; sourceTree = "<group>"; };
-		A20000000000000000000008 /* FullWidthSegmentedControl.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FullWidthSegmentedControl.swift; sourceTree = "<group>"; };
+		A20000000000000000000009 /* DisplayLuminanceViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DisplayLuminanceViewModel.swift; sourceTree = "<group>"; };
+		A2000000000000000000000A /* BrightnessAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrightnessAppearance.swift; sourceTree = "<group>"; };
 		A30000000000000000000001 /* DisplayLuminance.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = DisplayLuminance.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -76,8 +76,8 @@
 				A20000000000000000000001 /* DisplayLuminanceApp.swift */,
 				A20000000000000000000002 /* ContentView.swift */,
 				A20000000000000000000003 /* M1DDCService.swift */,
-				A20000000000000000000006 /* WindowConfigurator.swift */,
-				A20000000000000000000008 /* FullWidthSegmentedControl.swift */,
+				A20000000000000000000009 /* DisplayLuminanceViewModel.swift */,
+				A2000000000000000000000A /* BrightnessAppearance.swift */,
 				A20000000000000000000004 /* Assets.xcassets */,
 			);
 			path = DisplayLuminance;
@@ -189,8 +189,8 @@
 				A10000000000000000000001 /* DisplayLuminanceApp.swift in Sources */,
 				A10000000000000000000002 /* ContentView.swift in Sources */,
 				A10000000000000000000003 /* M1DDCService.swift in Sources */,
-				A10000000000000000000006 /* WindowConfigurator.swift in Sources */,
-				A10000000000000000000008 /* FullWidthSegmentedControl.swift in Sources */,
+				A10000000000000000000009 /* DisplayLuminanceViewModel.swift in Sources */,
+				A1000000000000000000000A /* BrightnessAppearance.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

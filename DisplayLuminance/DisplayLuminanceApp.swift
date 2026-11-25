@@ -2,13 +2,14 @@ import SwiftUI
 
 @main
 struct DisplayLuminanceApp: App {
-    @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
+    @StateObject private var viewModel = DisplayLuminanceViewModel()
 
     var body: some Scene {
-        WindowGroup {
-            ContentView()
+        Window("Display Luminance", id: "brightness") {
+            ContentView(viewModel: viewModel)
+                .preferredColorScheme(.dark)
         }
-        .defaultSize(width: WindowMetrics.contentWidth, height: WindowMetrics.contentHeight)
-        .windowResizability(.contentSize)
+        .defaultSize(width: 860, height: 410)
+        .windowResizability(.contentMinSize)
     }
 }

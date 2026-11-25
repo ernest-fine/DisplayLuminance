@@ -30,9 +30,9 @@ open build/Build/Products/Debug/DisplayLuminance.app
 
 ## Usage
 
-1. Enter a luminance value **0–100** in steps of 10 (or use the slider).
-2. Click **Apply to All Displays** — runs the bundled `m1ddc` for each listed display.
-3. Use **Refresh** to re-scan displays.
+- Use **−10%** or **+10%** next to a display to adjust it in 10-point steps. An in-between level moves to the next multiple of 10 in the chosen direction.
+- Use **All displays** to set a shared brightness. Each button shows the level it will apply. With mixed levels, lowering steps below the dimmest display and raising steps above the brightest, within the 0–100% range.
+- Use **Refresh** (⌘R) to scan for displays and read their brightness again.
 
 ## Third-party license
 
