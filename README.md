@@ -2,7 +2,9 @@
 
 Display Luminance is a native macOS app for adjusting the hardware brightness of external monitors. Set every connected monitor to one brightness level or adjust them individually.
 
-![Display Luminance with overlapping orange and blue monitors in the All displays card](docs/screenshots/display-luminance.png)
+| Light mode | Dark mode |
+| --- | --- |
+| ![Display Luminance in Light mode with overlapping orange and blue monitors](docs/screenshots/display-luminance.png) | ![Display Luminance in Dark mode with overlapping orange and blue monitors](docs/screenshots/display-luminance-dark.png) |
 
 ## Releases
 
