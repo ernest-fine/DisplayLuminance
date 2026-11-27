@@ -1,7 +1,9 @@
+import AppKit
 import SwiftUI
 
 struct ContentView: View {
     @ObservedObject var viewModel: DisplayLuminanceViewModel
+    @State private var displayBounds: [UUID: CGRect] = [:]
 
     var body: some View {
         ScrollView {
@@ -21,7 +23,7 @@ struct ContentView: View {
 
                 ViewThatFits(in: .horizontal) {
                     HStack(alignment: .top, spacing: 14) {
-                        AllDisplaysCard(viewModel: viewModel)
+                        AllDisplaysCard(viewModel: viewModel, displayBounds: displayBounds)
                             .frame(minWidth: 310)
 
                         DisplayListCard(viewModel: viewModel)
@@ -29,7 +31,7 @@ struct ContentView: View {
                     }
 
                     VStack(spacing: 14) {
-                        AllDisplaysCard(viewModel: viewModel)
+                        AllDisplaysCard(viewModel: viewModel, displayBounds: displayBounds)
                         DisplayListCard(viewModel: viewModel)
                     }
                 }
@@ -42,7 +44,13 @@ struct ContentView: View {
         .frame(minWidth: 360, minHeight: 340)
         .background(BrightnessPalette.window)
         .foregroundStyle(BrightnessPalette.text)
-        .task { await viewModel.refresh() }
+        .task {
+            displayBounds = DisplayArrangement.onlineBounds()
+            await viewModel.refresh()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didChangeScreenParametersNotification)) { _ in
+            displayBounds = DisplayArrangement.onlineBounds()
+        }
     }
 
     private var title: some View {
@@ -80,6 +88,7 @@ struct ContentView: View {
 
 private struct AllDisplaysCard: View {
     @ObservedObject var viewModel: DisplayLuminanceViewModel
+    let displayBounds: [UUID: CGRect]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -94,38 +103,23 @@ private struct AllDisplaysCard: View {
                         .foregroundStyle(BrightnessPalette.warmText)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 4)
-                        .background(BrightnessPalette.amber.opacity(0.09), in: RoundedRectangle(cornerRadius: 5))
+                        .background(BrightnessPalette.warmSurface, in: RoundedRectangle(cornerRadius: 5))
                 }
             }
 
-            VStack(alignment: .leading, spacing: 5) {
-                Text("Current brightness")
-                    .font(.callout)
-                    .foregroundStyle(BrightnessPalette.secondary)
+            HStack(spacing: 12) {
+                brightnessReadout
+                    .frame(minWidth: 110, maxWidth: .infinity, alignment: .leading)
+                    .zIndex(1)
 
-                HStack(alignment: .firstTextBaseline, spacing: 4) {
-                    Text(groupValue ?? "—")
-                        .font(.system(size: 62, weight: .medium))
-                        .monospacedDigit()
-                        .tracking(-2.5)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.55)
-
-                    if groupValue != nil {
-                        Text("%")
-                            .font(.system(size: 26, weight: .medium))
-                            .foregroundStyle(BrightnessPalette.amber)
-                    }
+                if !viewModel.displays.isEmpty {
+                    ScreenSpill(displays: viewModel.displays, displayBounds: displayBounds)
+                        .frame(maxWidth: 174)
                 }
-                .foregroundStyle(BrightnessPalette.warmText)
             }
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Current brightness")
-            .accessibilityValue(groupValue.map { "\($0) percent" } ?? "Unavailable")
-            .padding(.top, 27)
-            .padding(.bottom, 25)
+            .frame(height: 142)
 
-            Spacer(minLength: 0)
+            Spacer(minLength: 8)
 
             HStack(spacing: 9) {
                 ForEach(BrightnessDirection.allCases, id: \.self) { direction in
@@ -137,14 +131,45 @@ private struct AllDisplaysCard: View {
         .frame(maxWidth: .infinity, minHeight: 282, alignment: .topLeading)
         .fixedSize(horizontal: false, vertical: true)
         .background {
-            BrightnessHalo(intensity: viewModel.summary?.intensity ?? 0)
-                .clipShape(RoundedRectangle(cornerRadius: BrightnessPalette.panelRadius))
+            LinearGradient(
+                colors: [BrightnessPalette.warmSurface, BrightnessPalette.window],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
         }
+        .clipShape(RoundedRectangle(cornerRadius: BrightnessPalette.panelRadius))
         .overlay {
             RoundedRectangle(cornerRadius: BrightnessPalette.panelRadius)
                 .strokeBorder(BrightnessPalette.border)
                 .allowsHitTesting(false)
         }
+    }
+
+    private var brightnessReadout: some View {
+        VStack(alignment: .leading, spacing: 5) {
+            Text("Current brightness")
+                .font(.callout)
+                .foregroundStyle(BrightnessPalette.secondary)
+
+            HStack(alignment: .firstTextBaseline, spacing: 4) {
+                Text(groupValue ?? "—")
+                    .font(.system(size: 62, weight: .medium))
+                    .monospacedDigit()
+                    .tracking(-2.5)
+                    .lineLimit(1)
+                    .minimumScaleFactor(0.4)
+
+                if groupValue != nil {
+                    Text("%")
+                        .font(.system(size: 26, weight: .medium))
+                        .foregroundStyle(BrightnessPalette.amber)
+                }
+            }
+            .foregroundStyle(BrightnessPalette.warmText)
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Current brightness")
+        .accessibilityValue(groupValue.map { "\($0) percent" } ?? "Unavailable")
     }
 
     private var groupValue: String? {
@@ -264,7 +289,7 @@ private struct DisplayBrightnessRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 11) {
-                MonitorThumbnail(intensity: reading.screenIntensity, warm: reading.id % 2 == 1)
+                MonitorThumbnail(intensity: reading.screenIntensity, warm: reading.usesWarmTint)
 
                 Text(reading.display.label)
                     .font(.headline)

@@ -2,13 +2,15 @@
 
 Display Luminance is a native macOS app for adjusting the hardware brightness of external monitors. Set every connected monitor to one brightness level or adjust them individually.
 
-[Download the latest release](https://github.com/ernest-fine/DisplayLuminance/releases/latest)
+## Releases
+
+Find the Apple Silicon ZIP in the latest release’s **Assets** section. [Latest release](https://github.com/ernest-fine/DisplayLuminance/releases/latest) · [Release history](https://github.com/ernest-fine/DisplayLuminance/releases)
 
 ## Install
 
 You’ll need an Apple Silicon Mac running macOS 13 or later and an external monitor that supports DDC/CI over USB-C with DisplayPort Alt Mode or a supported HDMI port. [Connection details](https://github.com/waydabber/m1ddc/tree/v1.3.3#readme)
 
-1. Download the Apple Silicon ZIP from the release’s **Assets** section.
+1. Download the Apple Silicon ZIP from GitHub Releases.
 2. Unzip it and move **Display Luminance** to **Applications**. Quit any open copy before replacing it.
 3. Open the app. If your monitor supports DDC/CI but doesn’t appear, enable DDC/CI in the monitor’s settings and click **Refresh**.
 
@@ -18,8 +20,9 @@ The downloadable build is ad-hoc signed. You can also build the app in Xcode usi
 
 - **Adjust one display.** Click **−10%** or **+10%** next to the monitor. The buttons select multiples of 10 from 0% to 100%. If the current level is between steps, the first click moves to the next step in the selected direction.
 - **Adjust all displays.** Click **Lower all** or **Raise all** to set every monitor to the level shown on the button. If brightness levels differ, **Lower all** steps below the dimmest monitor and **Raise all** steps above the brightest, within the 0–100% range. With monitors at 40% and 70%, the buttons set both to 30% or 80%.
-- **See current brightness.** Each monitor thumbnail reflects that monitor’s brightness. The amber halo follows the shared level or the average of reported levels when the monitors differ.
+- **See current brightness.** The **All displays** illustration follows the monitor arrangement in macOS. Each screen shows its own brightness and uses the same color as its individual monitor thumbnail.
 - **Refresh or retry.** Press **⌘R** to rescan and read the current levels. If a write fails, **Retry** sends the same target to that monitor again.
+- **Choose an appearance.** Open **View → Appearance** to choose **Light**, **Dark**, or **System**. The app remembers your choice.
 
 ## Build from source
 

@@ -27,18 +27,17 @@ struct DisplayBrightness: Identifiable {
 
     var id: Int { display.id }
     var screenIntensity: Double { Double(level ?? 0) / 100 }
+    var usesWarmTint: Bool { id % 2 == 1 }
 }
 
 struct BrightnessSummary {
     let lowest: Int
     let highest: Int
-    let intensity: Double
 
     init?(levels: [Int]) {
         guard let lowest = levels.min(), let highest = levels.max() else { return nil }
         self.lowest = lowest
         self.highest = highest
-        intensity = Double(levels.reduce(0, +)) / Double(levels.count * 100)
     }
 }
 

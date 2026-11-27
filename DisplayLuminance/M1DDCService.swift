@@ -23,8 +23,15 @@ enum M1DDCError: LocalizedError {
 struct DisplayInfo: Identifiable, Hashable {
     let index: Int
     let label: String
+    let systemUUID: UUID?
 
     var id: Int { index }
+
+    init(index: Int, label: String, systemUUID: UUID? = nil) {
+        self.index = index
+        self.label = label
+        self.systemUUID = systemUUID
+    }
 }
 
 final class M1DDCService {
@@ -119,12 +126,20 @@ final class M1DDCService {
         let lines = output.split(whereSeparator: \.isNewline)
 
         for lineSub in lines {
-            let line = String(lineSub)
-            guard let index = parseDisplayIndex(from: line) else { continue }
-            let label = parseDisplayLabel(from: line, index: index)
-            if !displays.contains(where: { $0.index == index }) {
-                displays.append(DisplayInfo(index: index, label: label))
+            let line = lineSub.trimmingCharacters(in: .whitespaces)
+            guard let match = line.firstMatch(of: /^\[(\d+)\]/),
+                  let index = Int(match.1),
+                  !displays.contains(where: { $0.index == index })
+            else { continue }
+
+            var label = String(line[match.range.upperBound...]).trimmingCharacters(in: .whitespaces)
+            var systemUUID: UUID?
+            if let openParen = label.lastIndex(of: "("), label.hasSuffix(")"), openParen > label.startIndex {
+                let suffix = label[label.index(after: openParen)..<label.index(before: label.endIndex)]
+                systemUUID = UUID(uuidString: String(suffix))
+                label = String(label[..<openParen]).trimmingCharacters(in: .whitespaces)
             }
+            displays.append(DisplayInfo(index: index, label: label.isEmpty ? "Display \(index)" : label, systemUUID: systemUUID))
         }
 
         return displays.sorted { $0.index < $1.index }
@@ -255,32 +270,4 @@ final class M1DDCService {
         return nil
     }
 
-    private static func parseDisplayIndex(from line: String) -> Int? {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        // m1ddc format: [1] Product Name (uuid)
-        if let match = trimmed.firstMatch(of: /^\[(\d+)\]/) {
-            return Int(match.1)
-        }
-        return nil
-    }
-
-    private static func parseDisplayLabel(from line: String, index: Int) -> String {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
-        // Strip "[n] " prefix and trailing " (uuid)"
-        guard let bracketEnd = trimmed.firstIndex(of: "]") else {
-            return "Display \(index)"
-        }
-        var label = String(trimmed[trimmed.index(after: bracketEnd)...])
-            .trimmingCharacters(in: .whitespaces)
-        if let openParen = label.lastIndex(of: "("),
-           label.hasSuffix(")"),
-           openParen > label.startIndex
-        {
-            label = String(label[..<openParen]).trimmingCharacters(in: .whitespaces)
-        }
-        if label.isEmpty {
-            return "Display \(index)"
-        }
-        return label
-    }
 }
